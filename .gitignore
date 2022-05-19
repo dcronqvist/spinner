@@ -1,5 +1,8 @@
 # Environment variable files
-.devenv
+backend/.devenv
+frontend/.devenv
+backend/requests/
+backend/dist/
 
 # Logs
 logs

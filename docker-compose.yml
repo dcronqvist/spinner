@@ -1,0 +1,28 @@
+version: "1"
+services:
+  postgres:
+    build: backend/db/
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    restart: always
+  api:
+    build: backend/
+    environment:
+      DB_NAME: spinner_db
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    ports:
+      - "9000:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+  frontend:
+    build: frontend/
+    environment:
+      BACKEND_PORT: 9000
+      PORT: 8080
+    ports:
+      - "9001:8080"
