@@ -1,15 +1,17 @@
-import type { NextPage } from 'next'
-import Head from 'next/head';
-import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import Sidebar from '../components/sidebar';
-import styled from 'styled-components';
-import { useState } from 'react';
+import { Stack } from '@mui/material';
 import axios from 'axios';
+import type { NextPage } from 'next';
+import Head from 'next/head';
 import { useRouter } from 'next/router';
+import { useEffect } from 'react';
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { Application } from '../../backend/src/entities/entities';
+import ApplicationPreview from '../components/applicationPreview';
 
 interface ApplicationPageProps {
-  applications: any
+  applications: Application[],
+  failed: boolean,
 }
 
 const Applications: NextPage<ApplicationPageProps> = (props: ApplicationPageProps) => {
@@ -19,62 +21,52 @@ const Applications: NextPage<ApplicationPageProps> = (props: ApplicationPageProp
     router.replace(router.asPath);
   }
 
+  useEffect(() => {
+      const intervalId = setInterval(() => {
+        refreshData();
+
+        if (props.failed) {
+          toast.error('Failed to fetch applications from backend', {
+            autoClose: 1000
+          });
+        }
+      }, 5000);
+      return () => clearInterval(intervalId);
+  })
+
   return (
-    <div>
+    <>
       <Head>
         <title>spinner</title>
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      {props.applications.map((application: any, index: number) => {
-        return (
-          <>
-          <p key={index}>{application.is_running ? "ON" : "OFF"} - {application.name} docker id={application.docker_id}</p>
-          <input type="button" value="start" onClick={() => {
-            axios.get("/api/applications/" + application.name + "/start").then(res => {
-              if (res.status === 200) {
-                toast.success("Application started");
-                refreshData();
-              }
-            }).catch(err => {
-              toast.error("Application already running");
-            })
-          }}/>
-          <input type="button" value="stop" onClick={() => {
-            axios.get("/api/applications/" + application.name + "/stop").then(res => {
-              if (res.status === 200) {
-                toast.success("Application stopped");
-                refreshData();
-              }
-            }).catch(err => {
-              toast.error("Application already stopped");
-            })
-          }}/>
-          <input type="button" value="logs" onClick={() => {
-            axios.get("/api/applications/" + application.name + "/logs").then(res => {
-              if (res.status === 200) {
-                toast(res.data);
-                refreshData();
-              }
-            }).catch(err => {
-              toast.error("Could not get logs");
-            })
-          }}/>
-          </>
-        );
-      })}
-    </div>
+      <Stack spacing={2}>
+        {props.applications.map((application: any, index: number) => {
+          return (
+            <ApplicationPreview forceRefresh={refreshData} app={application} key={index} />
+          );
+        })}
+      </Stack>
+    </>
   )
 }
 
-export async function getServerSideProps(context: any) {
-  const res = await axios.get("http://localhost:8080/api/applications");
-  const applications = res.data; 
-
-  return {
-    props: {
-      applications: applications || []
-    }, // will be passed to the page component as props
-  }
+export function getServerSideProps(context: any) {
+  return axios.get('http://localhost:8080/api/applications').then(res => {
+    return {
+      props: {
+        failed: false,
+        applications: res.data
+      }
+    }
+  }).catch(err => {
+    return {
+      props: {
+        failed: true,
+        applications: []
+      }
+    }
+  })
 }
 
 export default Applications

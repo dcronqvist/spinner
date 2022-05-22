@@ -26,7 +26,7 @@ export class EnvVar {
 }
 
 @Entity({ tableName: "applications" })
-export default class Application {
+export class Application {
     @PrimaryKey()
     name!: string;
     @Property()
@@ -45,21 +45,26 @@ export default class Application {
     docker_file_path!: string;
     @Property({ nullable: true })
     docker_id: string | null = null;
+    @Property()
+    is_updating!: boolean;
 
     // Properties that need evaluating after retrieving from the database
-    status: string | null = null;
-    is_running: boolean | null = null;
+    status: string = null;
+    is_running: boolean = false;
     port_bindings: PortBinding[] = [];
     env_vars: EnvVar[] = [];
     volumes: string[] = [];
 
     get(): Promise<Application> {
         if (this.docker_id === null) {
-            return Promise.resolve(this);
+            return Promise.resolve({
+                ...this,
+                status: "not_built",
+                is_running: false,
+            })
         }
 
         const container = DOCKER.getContainer(this.docker_id);
-
         return container.inspect().then(ci => {
             return {
                 ...this,
@@ -72,8 +77,15 @@ export default class Application {
                 }),
                 volumes: ci.HostConfig.Binds || [],
                 status: ci.State.Status,
-                is_running: ci.State.Running
-            }
+                is_running: ci.State.Running,
+            };
+        }).catch(err => {
+            // the container doesn't exist.
+            return Promise.resolve({
+                ...this,
+                status: "container_not_found",
+                is_running: false,
+            })
         });
     }
 }

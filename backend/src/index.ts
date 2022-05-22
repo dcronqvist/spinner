@@ -2,7 +2,7 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import Docker from 'dockerode';
 import { MikroORM, RequestContext } from '@mikro-orm/core';
-import Application, { EnvVar, PortBinding } from './entities/entities';
+import { EnvVar, PortBinding, Application } from './entities/entities';
 import axios from 'axios';
 import crypto from 'crypto';
 import { convertPortBindingToDocker } from './utils';
@@ -60,19 +60,15 @@ const main = async () => {
     app.use(bodyParser.json());
 
     app.get("/api/applications", (req, res) => {
-        DOCKER.listContainers({
-            all: true
-        }).then(containers => {
-            orm.em.find(Application, {}).then(apps => {
-                if (!apps) {
-                    res.status(404).send("No applications found");
-                    return;
-                }
+        orm.em.find(Application, {}).then(apps => {
+            if (!apps) {
+                res.status(404).send("No applications found");
+                return;
+            }
 
-                const evaledApps = apps.map(a => a.get());
-                Promise.all(evaledApps).then(a => {
-                    res.json(a);
-                });
+            const evaledApps = apps.map(a => a.get());
+            Promise.all(evaledApps).then(a => {
+                res.json(a);
             });
         });
     });
@@ -120,6 +116,7 @@ const main = async () => {
         application.docker_file_path = docker_file_path;
         application.created_at = new Date();
         application.updated_at = new Date();
+        application.is_updating = false;
 
         // Create the port bindings
         const portBindings: PortBinding[] = port_bindings.map((pb: any) => {
@@ -208,16 +205,33 @@ const main = async () => {
             }
 
             application.get().then(async a => {
-                const container = DOCKER.getContainer(a.docker_id);
-                if (a.is_running) {
-                    // Stop the container first
-                    await container.stop();
-                }
-
-                container.remove({ force: true }).then(() => {
+                if (a.status === "container_not_found") {
                     orm.em.removeAndFlush(application);
                     res.sendStatus(200);
-                });
+                    return;
+                }
+
+                const container = DOCKER.getContainer(a.docker_id);
+                container.inspect().then(ci => {
+                    // Check if it is running and then remove container & from database
+                    if (ci.State.Running) {
+                        container.stop().then(() => {
+                            container.remove({ force: true }).then(() => {
+                                orm.em.removeAndFlush(application);
+                                res.sendStatus(200);
+                            })
+                        });
+                    } else {
+                        container.remove({ force: true }).then(() => {
+                            orm.em.removeAndFlush(application);
+                            res.sendStatus(200);
+                        })
+                    }
+                }).catch(err => {
+                    // Doesn't exist, just remove from database
+                    orm.em.removeAndFlush(application);
+                    res.sendStatus(200);
+                })
             });
         });
     });
@@ -383,6 +397,10 @@ const main = async () => {
 
             console.log(`Notifying ${application.name} of new build.`);
 
+            // Set is_updating in database to true (makes visible to frontend)
+            application.is_updating = true;
+            orm.em.persistAndFlush(application);
+
             application.get().then(appli => {
                 const envVars = appli.env_vars;
                 const portBindings = appli.port_bindings;
@@ -424,17 +442,23 @@ const main = async () => {
                                     console.log(`Container created with id ${container.id}.`);
 
                                     application.docker_id = container.id;
-                                    orm.em.persistAndFlush(application);
+                                    application.updated_at = new Date();
                                     container.start();
                                 }).catch(err => {
                                     console.log(err);
                                 }).finally(() => {
                                     console.log("finally reached!");
+                                    application.is_updating = false;
+                                    orm.em.persistAndFlush(application);
                                 })
                             });
-                        });
-
-
+                        }).catch(err => {
+                            console.log(err);
+                        }).finally(() => {
+                            console.log("finally reached!");
+                            application.is_updating = false;
+                            orm.em.persistAndFlush(application);
+                        })
                     }
                 });
 
@@ -455,6 +479,10 @@ const main = async () => {
 
             console.log(`Notifying ${application.name} of new build.`);
 
+            // Set is_updating in database to true (makes visible to frontend)
+            application.is_updating = true;
+            orm.em.persistAndFlush(application);
+
             application.get().then(appli => {
                 const envVars = appli.env_vars;
                 const portBindings = appli.port_bindings;
@@ -467,6 +495,7 @@ const main = async () => {
                 }, (err, stream) => {
                     if (err) {
                         console.log(err);
+                        res.sendStatus(500);
                         return;
                     } else {
                         stream.pipe(process.stdout);
@@ -494,16 +523,21 @@ const main = async () => {
                                 console.log(ops);
                                 DOCKER.createContainer(ops).then(container => {
                                     console.log(`Container created with id ${container.id}.`);
-
                                     application.docker_id = container.id;
-                                    orm.em.persistAndFlush(application);
-                                    container.start();
+                                    application.updated_at = new Date();
                                 }).catch(err => {
                                     console.log(err);
                                 }).finally(() => {
                                     console.log("finally reached!");
+                                    application.is_updating = false;
+                                    orm.em.persistAndFlush(application);
                                 })
-                            });
+                            }).catch(err => {
+
+                            }).finally(() => {
+                                application.is_updating = false;
+                                orm.em.persistAndFlush(application);
+                            })
                         });
 
 

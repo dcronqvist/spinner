@@ -1,49 +1,7 @@
-import Link from "next/link"
-import { useEffect, useState } from "react"
-import { ToastContainer } from "react-toastify"
-import styled from "styled-components"
-import Sidebar from "./sidebar"
-
-const MainContainer = styled.main`
-  height: 100vh;
-  width: 100vw;
-  padding-left: 50px;
-  background-color: #202c33;
-  color: white;
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  overflow: hidden;
-
-  header {
-    width: 100%;
-  }
-
-  footer {
-    margin-right: 50px;
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    flex-direction: column;
-    align-items: flex-end;
-  }
-
-  h1 {
-    margin: 0px;
-    margin-top: 20px;
-    padding: 13px;
-    width: 100%;
-    height: 100px;
-    font-size: 50px;
-    font-weight: bold;
-  }
-`
-
-const PageContainer = styled.div`
-    margin-left: 50px;
-    width: calc(100% - 300px - 100px);
-    background-color: #374c59;
-`
+import { AddCircle, Apps, House, Menu } from "@mui/icons-material"
+import { AppBar, Box, Drawer, IconButton, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Paper, Toolbar, Typography } from "@mui/material"
+import { useRouter } from "next/router"
+import { useState } from "react"
 
 interface LayoutProps {
     children?: any
@@ -52,48 +10,96 @@ interface LayoutProps {
 interface SidebarOption {
     name: string
     path: string
+    icon: JSX.Element
 }
 
 const Layout = (props: LayoutProps) => {
+    const [open, setOpen] = useState(false)
+    const router = useRouter();
+
     const options: SidebarOption[] = [
         {
             name: "Home",
-            path: "/"
+            path: "/",
+            icon: <House />
         },
         {
             name: "Applications",
-            path: "/applications"
+            path: "/applications",
+            icon: <Apps />
         },
         {
             name: "New Application",
-            path: "/new"
-        },
-        {
-            name: "Check Repository",
-            path: "/check"
+            path: "/new",
+            icon: <AddCircle />
         }
     ]
 
     return (
-        <MainContainer>
-            <header>
-                <h1>spinner</h1>
-            </header>
-            <Sidebar>
-                {options.map((option, index) => (
-                    <Link href={option.path} key={index}>
-                        {option.name}
-                    </Link>   
-                ))}
-            </Sidebar>
-            <PageContainer>
+        // <MainContainer>
+        //     <header>
+        //         <h1>spinner</h1>
+        //     </header>
+        //     <Sidebar>
+        //         {options.map((option, index) => (
+        //             <Link href={option.path} key={index}>
+        //                 {option.name}
+        //             </Link>   
+        //         ))}
+        //     </Sidebar>
+        //     <PageContainer>
+        //         {props.children}
+        //     </PageContainer>
+        //     <footer>
+        //         <h5>hello i am a footer. i am just down here with maybe some info for you</h5>
+        //     </footer>
+        //     <ToastContainer />
+        // </MainContainer>
+        <>
+        <AppBar position="static">
+            <Toolbar variant="regular">
+                <IconButton edge="start" color="inherit" aria-label="menu" onClick={() => setOpen(true)}>
+                    <Menu />
+                </IconButton>
+                <Typography variant="h5" color="inherit">
+                    spinner
+                </Typography>
+            </Toolbar>
+        </AppBar>
+        <Drawer anchor="left" open={open} onClose={() => setOpen(false)}>
+            <Box sx={{width: 250}} role="presentation">
+                <List>
+                    {options.map((option, index) => {
+                        return (
+                            <ListItem key={index} disablePadding>
+                                <ListItemButton onClick={() => { router.push(option.path); setOpen(false) }}>
+                                    <ListItemIcon>
+                                        {option.icon}
+                                    </ListItemIcon>
+                                    <ListItemText primary={option.name} />
+                                </ListItemButton>
+                            </ListItem>
+                        )
+                    })}
+                </List>
+            </Box>
+        </Drawer>
+        <Box sx={{
+            display: "flex",
+            width: "100%",
+            justifyContent: "center",
+        }}>
+            <Paper variant="outlined" sx={{
+                transform: "translateY(20px)",
+                width: "100%",
+                maxWidth: "1000px",
+                padding: "1rem",
+                minHeight: "60vh",
+            }}>
                 {props.children}
-            </PageContainer>
-            <footer>
-                <h5>hello i am a footer. i am just down here with maybe some info for you</h5>
-            </footer>
-            <ToastContainer />
-        </MainContainer>
+            </Paper>
+        </Box>
+        </>
     );
 }
 
