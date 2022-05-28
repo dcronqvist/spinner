@@ -1,4 +1,4 @@
-import { AddCircle, Apps, House, Menu } from "@mui/icons-material"
+import { AddCircle, Apps, House, Lock, Menu } from "@mui/icons-material"
 import { AppBar, Box, Drawer, IconButton, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Paper, Toolbar, Typography } from "@mui/material"
 import { useRouter } from "next/router"
 import { useState } from "react"
@@ -27,6 +27,11 @@ const Layout = (props: LayoutProps) => {
             name: "Applications",
             path: "/applications",
             icon: <Apps />
+        },
+        {
+            name: "Caddy",
+            path: "/caddy",
+            icon: <Lock />
         },
         {
             name: "New Application",

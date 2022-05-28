@@ -1,12 +1,13 @@
 import express from 'express';
 import bodyParser from 'body-parser';
-import Docker from 'dockerode';
+import Docker, { Container, ContainerInfo } from 'dockerode';
 import { MikroORM, RequestContext } from '@mikro-orm/core';
 import { EnvVar, PortBinding, Application } from './entities/entities';
 import axios from 'axios';
 import crypto from 'crypto';
 import { convertPortBindingToDocker } from './utils';
 import waitPort from 'wait-port';
+import fs from 'fs';
 
 export const DOCKER = new Docker({ socketPath: '/var/run/docker.sock' });
 export let ORM: MikroORM = null;
@@ -17,6 +18,20 @@ const DB_HOST = process.env.DB_HOST;
 const DB_PORT = parseInt(process.env.DB_PORT);
 const DB_USER = process.env.DB_USER;
 const DB_PASSWORD = process.env.DB_PASSWORD;
+const CADDY_CONTAINER_NAME = process.env.CADDY_CONTAINER_NAME;
+
+const getCaddyContainer = async (): Promise<Container> => {
+    return DOCKER.listContainers().then(containers => {
+        const caddyContainer = containers.find(c => c.Names[0].includes(CADDY_CONTAINER_NAME))
+        if (caddyContainer) {
+            return DOCKER.getContainer(caddyContainer.Id);
+        }
+        else {
+            return Promise.reject('Caddy container not found');
+        }
+    })
+}
+
 
 const main = async () => {
     await waitPort({ host: DB_HOST, port: DB_PORT });
@@ -74,7 +89,7 @@ const main = async () => {
     });
 
     app.post("/api/applications", async (req, res) => {
-
+        console.log("Creating application");
         /*
         body: {
             name,
@@ -97,6 +112,7 @@ const main = async () => {
                 res.status(400).json({
                     error: "Application with that name already exists"
                 });
+                console.log("Application with that name already exists");
                 return true;
             }
 
@@ -104,6 +120,8 @@ const main = async () => {
         });
         if (exists)
             return;
+
+        console.log("Name doesn't exist yet");
 
         const notification_id = crypto.randomUUID(); // needs to be generated somehow
 
@@ -550,9 +568,11 @@ const main = async () => {
     })
 
     app.get("/api/verify", (req, res) => {
+        console.log("Verifying...");
         // Query params = owner, repo, branch, path
         if (!req.query.owner || !req.query.repo || !req.query.branch) {
             res.status(400).send("Missing query params");
+            console.log("Missing query params");
             return;
         }
 
@@ -566,15 +586,80 @@ const main = async () => {
         axios.get(`https://api.github.com/repos/${owner}/${repo}/contents/${path}Dockerfile?ref=${branch}`).then(response => {
             if (res.statusCode === 200) {
                 // Dockerfile found
+                console.log("Dockerfile found.");
                 res.sendStatus(200);
             }
             else {
                 // Dockerfile not found
+                console.log("Dockerfile not found.");
                 res.sendStatus(400);
             }
         }).catch(err => {
+            console.log(err);
             res.sendStatus(400);
         });
+    })
+
+    app.get("/api/caddy", (req, res) => {
+        getCaddyContainer().then(container => {
+            fs.readFile("/app/Caddyfile", "utf8", (err, data) => {
+                if (err) {
+                    console.log(err);
+                    res.sendStatus(500);
+                    return;
+                }
+
+                res.send(data);
+            })
+        }).catch(err => {
+            res.sendStatus(500);
+        })
+    })
+
+    app.post("/api/caddy", (req, res) => {
+        /*
+        body = {
+            caddyfile: string
+        }
+        */
+        if (!req.body.caddyfile) {
+            res.sendStatus(400);
+            return;
+        }
+
+        const caddyfile = req.body.caddyfile;
+
+        getCaddyContainer().then(container => {
+            fs.writeFile("/app/Caddyfile", caddyfile, err => {
+                if (err) {
+                    console.log(err);
+                    res.sendStatus(500);
+                    return;
+                }
+
+                res.sendStatus(200);
+            })
+        }).catch(err => {
+            res.sendStatus(500);
+        })
+    })
+
+    app.get("/api/caddy/reload", (req, res) => {
+        getCaddyContainer().then(container => {
+            container.exec({
+                WorkingDir: "/etc/caddy",
+                Cmd: ["caddy", "reload"]
+            }).then(exec => {
+                exec.start({}).then(() => {
+                    res.sendStatus(200);
+                })
+            }).catch(err => {
+                console.log(err);
+                res.sendStatus(500);
+            })
+        }).catch(err => {
+            res.sendStatus(500);
+        })
     })
 
     app.listen(PORT, () => {

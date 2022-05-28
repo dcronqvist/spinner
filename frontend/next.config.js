@@ -1,4 +1,5 @@
 /** @type {import('next').NextConfig} */
+
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
@@ -8,7 +9,7 @@ const nextConfig = {
     return [
       {
         source: "/api/:path*",
-        destination: "http://localhost:8080/api/:path*"
+        destination: `http://${process.env.NEXT_PUBLIC_BACKEND_URL}/api/:path*`,
       }
     ]
   }

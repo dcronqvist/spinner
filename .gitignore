@@ -3,6 +3,7 @@ backend/.devenv
 frontend/.devenv
 backend/requests/
 backend/dist/
+caddy/data
 
 # Logs
 logs

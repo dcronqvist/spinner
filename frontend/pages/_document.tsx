@@ -1,5 +1,5 @@
 import { Html, Head, Main, NextScript } from 'next/document'
-import { ToastContainer } from 'react-toastify'
+import { SnackbarProvider } from 'notistack'
 import Layout from '../components/layout'
 
 export default function Document() {

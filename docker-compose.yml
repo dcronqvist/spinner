@@ -1,28 +1,40 @@
-version: "1"
+version: "3.7"
 services:
   postgres:
-    build: backend/db/
+    build: ./backend/db/
     environment:
       POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
     restart: always
+  caddy:
+    image: caddy:alpine
+    container_name: spinner_caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+      - ./caddy/data:/data
   api:
-    build: backend/
+    build: ./backend/
     environment:
       DB_NAME: spinner_db
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: postgres
       DB_PASSWORD: postgres
+      CADDY_CONTAINER_NAME: spinner_caddy
     ports:
-      - "9000:8080"
+      - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./caddy/Caddyfile:/app/Caddyfile
   frontend:
-    build: frontend/
+    build:
+      context: ./frontend/
+      dockerfile: ./Dockerfile
+      args:
+        - NEXT_PUBLIC_BACKEND_URL=api:8080 # Set to the backend host (api) and port (8080)
     environment:
-      BACKEND_PORT: 9000
-      PORT: 8080
+      PORT: 3000
     ports:
-      - "9001:8080"
+      - "9001:3000"

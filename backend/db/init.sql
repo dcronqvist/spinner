@@ -1,6 +1,6 @@
 CREATE DATABASE spinner_db;
 
-\ c spinner_db;
+\c spinner_db;
 
 DROP TABLE IF EXISTS applications;
 

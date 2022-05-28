@@ -1,0 +1,11 @@
+(internal_only) {
+  @externals not remote_ip private_ranges
+
+  handle @externals {
+    abort
+  }
+}
+
+localhost {
+    respond "Hello Spinner!"
+}
